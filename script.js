@@ -1,6 +1,15 @@
 let token = null;
 let role = null;
-const output = document.getElementById("output");
+let allArticles = [];
+
+// Elementos del DOM
+const formSectionEl     = document.getElementById("form-section");
+const formContainerEl   = document.getElementById("form-container");
+const responseSectionEl = document.getElementById("response-section");
+const outputEl          = document.getElementById("output");
+const catalogSectionEl  = document.getElementById("catalog-section");
+const catalogButtonsEl  = document.getElementById("catalog-buttons");
+const cardsContainerEl  = document.getElementById("cards-container");
 
 // ----------------- LOGIN -----------------
 async function login() {
@@ -17,12 +26,8 @@ async function login() {
     });
     if (!res.ok) throw new Error("Credenciales inválidas");
     const data = await res.json();
-    function capitalize(str) {
-      if (!str) return str;
-      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-    }
     token = data.token;
-    role  = capitalize(data.role);
+    role  = data.role[0].toUpperCase() + data.role.slice(1);
     document.getElementById("role-display").textContent = role;
     document.getElementById("login-form").style.display = "none";
     document.getElementById("app").style.display = "block";
@@ -34,49 +39,175 @@ async function login() {
 // ----------------- HELPERS -----------------
 function authHeaders() {
   if (!token) throw new Error("No estás autenticado");
-  return { "x-authentication": token };
+  return { "x-authentication": token, "Content-Type": "application/json" };
 }
-function showResponse(data) {
-  output.textContent = JSON.stringify(data, null, 2);
-}
-
-// ----------------- LLAMADAS API -----------------
-async function getCatalog() {
-  const res = await fetch("/data/articulos", { headers: authHeaders() });
-  showResponse(await res.json());
+function hideAllSections() {
+  formSectionEl.style.display     = "none";
+  responseSectionEl.style.display = "none";
+  catalogSectionEl.style.display  = "none";
+  formContainerEl.innerHTML       = "";
+  outputEl.textContent            = "";
 }
 
-async function getBranches() {
-  const res = await fetch("/data/sucursales", { headers: authHeaders() });
-  showResponse(await res.json());
+// ----------------- CATÁLOGO -----------------
+async function showProducts() {
+  hideAllSections();
+  catalogSectionEl.style.display = "block";
+
+  if (!allArticles.length) {
+    const res = await fetch("/data/articulos", { headers: authHeaders() });
+    allArticles = await res.json();
+  }
+  catalogButtonsEl.innerHTML = "";
+  cardsContainerEl.innerHTML = "";
+
+  const categories = {
+    "Herramientas Manuales":   ["Martillos","Destornilladores","Llaves"],
+    "Herramientas Eléctricas": ["Taladros","Sierras","Lijadoras"],
+    "Materiales Básicos":      ["Cemento","Arena","Ladrillos"],
+    "Acabados":                ["Pinturas","Barnices"],
+    "Cerámicos":               [],
+    "Equipos de Seguridad":    ["Cascos","Guantes","Lentes de Seguridad"],
+    "Accesorios Varios":       [],
+    "Tornillos y Anclajes":    [],
+    "Fijaciones y Adhesivos":  [],
+    "Equipos de Medición":     []
+  };
+
+  Object.keys(categories).forEach(cat => {
+    const btn = document.createElement("button");
+    btn.textContent = cat;
+    btn.onclick = () => renderCategory(cat, categories[cat]);
+    catalogButtonsEl.appendChild(btn);
+  });
 }
 
-async function getVendorsByBranch() {
-  const id = prompt("ID de sucursal:");
-  const res = await fetch(`/data/sucursales/${id}`, { headers: authHeaders() });
-  showResponse(await res.json());
+function renderCategory(catName, subcats) {
+  cardsContainerEl.innerHTML = "";
+  const filtered = allArticles.filter(a =>
+    a.categoria === catName || subcats.includes(a.subcategoria)
+  );
+  if (!filtered.length) {
+    cardsContainerEl.innerHTML = `<p>No hay productos en "${catName}".</p>`;
+    return;
+  }
+  filtered.forEach(prod => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <center>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png"
+             alt="Imagen ${prod.nombre}" />
+      </center>
+      <h3>${prod.nombre}</h3>
+      <p class="marca">${prod.marca}</p>
+      <p id="laid">ID: ${prod.id}</p>
+      <p class="stock">Stock: ${prod.stock}</p>
+      <div class="precio"><p>$${prod.precio.toLocaleString("es-CL")}</p></div>
+    `;
+    cardsContainerEl.appendChild(card);
+  });
+}
+
+// ----------------- FORMULARIOS DINÁMICOS -----------------
+
+function showProduct() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de artículo:</label>
+    <input type="text" id="input-article-id" placeholder="e.j. ART001" />
+    <button onclick="getProduct()">Consultar</button>
+  `;
 }
 
 async function getProduct() {
-  const id = prompt("ID de artículo:");
+  const id  = document.getElementById("input-article-id").value;
   const res = await fetch(`/data/articulos/${id}`, { headers: authHeaders() });
-  showResponse(await res.json());
+  const data = await res.json();
+  showResponse(data);
+}
+
+function showBranch() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de sucursal:</label>
+    <input type="text" id="input-branch-id" placeholder="e.j. SC001" />
+    <button onclick="getBranch()">Consultar</button>
+  `;
+}
+
+async function getBranch() {
+  const id  = document.getElementById("input-branch-id").value;
+  const res = await fetch(`/data/sucursales/${id}`, { headers: authHeaders() });
+  const data = await res.json();
+  showResponse(data);
+}
+
+async function showVendors() {
+  const res = await fetch(`/data/vendedores`, { headers: authHeaders() });
+  const data = await res.json();
+  showResponse(data);
+}
+
+function showVendor() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de vendedor:</label>
+    <input type="text" id="input-vendor-id" placeholder="e.j. V001" />
+    <button onclick="getVendor()">Consultar</button>
+  `;
 }
 
 async function getVendor() {
-  const id = prompt("ID de vendedor:");
+  const id  = document.getElementById("input-vendor-id").value;
   const res = await fetch(`/data/vendedores/${id}`, { headers: authHeaders() });
-  showResponse(await res.json());
+  const data = await res.json();
+  showResponse(data);
+}
+
+function showOrderForm() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de artículo:</label>
+    <input type="text" id="input-order-article" placeholder="e.j. ART001" />
+    <label>ID de sucursal:</label>
+    <input type="text" id="input-order-branch" placeholder="e.j. SC001" />
+    <label>Cantidad:</label>
+    <input type="number" id="input-order-qty" placeholder="e.j. 5" />
+    <button onclick="placeOrder()">Enviar Pedido</button>
+  `;
 }
 
 async function placeOrder() {
-  const aid = prompt("ID de artículo:");
-  const qty = parseInt(prompt("Cantidad:"), 10);
-  const body = { sucursal: prompt("ID sucursal:"), articulo: aid, cantidad: qty };
+  const aid = document.getElementById("input-order-article").value;
+  const sid = document.getElementById("input-order-branch").value;
+  const qty = parseInt(document.getElementById("input-order-qty").value, 10);
   const res = await fetch(`/data/articulos/venta/${aid}`, {
     method: "POST",
-    headers: { ...authHeaders(), "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    headers: authHeaders(),
+    body: JSON.stringify({ sucursal: sid, articulo: aid, cantidad: qty })
   });
-  showResponse(await res.json());
+  const data = await res.json();
+  showResponse(data);
+}
+
+// ----------------- SUCURSALES -----------------
+
+async function getBranches() {
+  hideAllSections();
+  const res = await fetch("/data/sucursales", { headers: authHeaders() });
+  const data = await res.json();
+  showResponse(data);
+}
+
+// ----------------- MUESTRA RESPUESTA -----------------
+function showResponse(data) {
+  formSectionEl.style.display     = "none";
+  catalogSectionEl.style.display  = "none";
+  responseSectionEl.style.display = "block";
+  outputEl.textContent            = JSON.stringify(data, null, 2);
 }

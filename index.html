@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FERREMAS - Cliente</title>
+  <title>FERREMAS</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -21,16 +21,32 @@
     <div id="app" style="display:none;">
       <p>Rol: <span id="role-display"></span></p>
       <div class="buttons">
-        <button onclick="getCatalog()">📦 Catálogo</button>
+        <button onclick="showProducts()">📦 Catálogo</button>
+        <button onclick="showProduct()">🔍 Producto</button>
         <button onclick="getBranches()">🏬 Sucursales</button>
-        <button onclick="getVendorsByBranch()">👷 Vendedores</button>
-        <button onclick="getProduct()">🔍 Producto</button>
-        <button onclick="getVendor()">👤 Vendedor</button>
-        <button onclick="placeOrder()">🛒 Pedido</button>
+        <button onclick="showBranch()">🏬 Sucursal</button>
+        <button onclick="showVendors()">👥 Vendedores</button>
+        <button onclick="showVendor()">👤 Vendedor</button>
+        <button onclick="showOrderForm()">🛒 Pedido</button>
       </div>
-      <div id="response">
-        <h2>Respuesta:</h2>
+
+      <!-- Formulario dinámico -->
+      <div id="form-section" style="display:none;">
+        <h2>Formulario</h2>
+        <div id="form-container"></div>
+      </div>
+
+      <!-- Área de respuesta -->
+      <div id="response-section" style="display:none;">
+        <h2>Respuesta</h2>
         <pre id="output"></pre>
+      </div>
+
+      <!-- Catálogo -->
+      <div id="catalog-section" style="display:none;">
+        <h2>Catálogo</h2>
+        <div id="catalog-buttons" class="catalog-buttons"></div>
+        <div id="cards-container"></div>
       </div>
     </div>
   </div>
