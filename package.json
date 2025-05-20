@@ -1,0 +1,15 @@
+{
+  "name": "api-plataformas",
+  "version": "1.0.0",
+  "description": "API's of I. Plataformas",
+  "license": "ISC",
+  "author": "Matoxx",
+  "type": "commonjs",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0"
+  }
+}

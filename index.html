@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FERREMAS - Cliente</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>FERREMAS</h1>
+
+    <div id="login-form">
+      <h2>🔐 Login</h2>
+      <input type="text" id="user" placeholder="Usuario" />
+      <input type="password" id="password" placeholder="Contraseña" />
+      <button onclick="login()">Entrar</button>
+      <p id="login-error" class="error"></p>
+    </div>
+
+    <div id="app" style="display:none;">
+      <p>Rol: <span id="role-display"></span></p>
+      <div class="buttons">
+        <button onclick="getCatalog()">📦 Catálogo</button>
+        <button onclick="getBranches()">🏬 Sucursales</button>
+        <button onclick="getVendorsByBranch()">👷 Vendedores</button>
+        <button onclick="getProduct()">🔍 Producto</button>
+        <button onclick="getVendor()">👤 Vendedor</button>
+        <button onclick="placeOrder()">🛒 Pedido</button>
+      </div>
+      <div id="response">
+        <h2>Respuesta:</h2>
+        <pre id="output"></pre>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
