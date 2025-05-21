@@ -94,29 +94,32 @@ async function showProducts() {
 
 function renderCategory(catName, subcats) {
   cardsContainerEl.innerHTML = "";
-  const filtered = allArticles.filter(a =>
-    a.categoria === catName || subcats.includes(a.subcategoria)
-  );
-  if (!filtered.length) {
-    cardsContainerEl.innerHTML = `<p>No hay productos en "${catName}".</p>`;
-    return;
-  }
-  filtered.forEach(prod => {
+  
+  // Filtrar artículos por categoría o subcategorías
+    const filtered = allArticles.filter(article => {
+    return article.categoria === catName || subcats.includes(article.categoria);
+  });
+
+  // Mostrar cards
+  filtered.forEach(article => {
     const card = document.createElement("div");
     card.className = "card";
+
     card.innerHTML = `
-      <center>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png"
-             alt="Imagen ${prod.nombre}" />
-      </center>
-      <h3>${prod.nombre}</h3>
-      <p class="marca">${prod.marca}</p>
-      <p id="laid">ID: ${prod.id}</p>
-      <p class="stock">Stock: ${prod.stock}</p>
-      <div class="precio"><p>$${prod.precio.toLocaleString("es-CL")}</p></div>
+      <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png" alt="Product image" />
+      <h3>${article.nombre}</h3>
+      <p class="marca">${article.marca || 'Sin marca'}</p>
+      <p id="laid">${article.id}</p>
+      <p class="stock">Stock: ${article.stock}</p>
+      <div class="precio"><p>$${article.precio}</p></div>
     `;
+
     cardsContainerEl.appendChild(card);
   });
+
+  // Mostrar también en la sección de respuesta
+  responseSectionEl.style.display = "block";
+  outputEl.textContent = JSON.stringify(filtered, null, 2);
 }
 
 // ----------------- FORMULARIOS DINÁMICOS -----------------
