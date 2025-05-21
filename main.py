@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -44,16 +44,21 @@ def verifyToken(x_authentication: str = Header(None, alias="x-authentication")) 
     return x_authentication  # devolvemos el token validado
 
 # Proxy de todos los endpoints bajo /data/*
-async def proxy_get(path: str, token: str):
+async def proxyGet(path: str, token: str):
     headers = {"x-authentication": token}
     async with httpx.AsyncClient() as client:
         r = await client.get(f"{API_BASE}{path}", headers=headers)
         return JSONResponse(status_code=r.status_code, content=r.json())
 
-async def proxy_post(path: str, body: dict, token: str):
+async def proxyPost(path: str, body: dict, token: str):
     headers = {"x-authentication": token}
     async with httpx.AsyncClient() as client:
         r = await client.post(f"{API_BASE}{path}", json=body, headers=headers)
+        return JSONResponse(status_code=r.status_code, content=r.json())
+    
+async def proxyPut(path: str, headers: dict):
+    async with httpx.AsyncClient() as client:
+        r = await client.put(f"{API_BASE}{path}", headers=headers)
         return JSONResponse(status_code=r.status_code, content=r.json())
 
 # Endpoint de autenticación
@@ -69,48 +74,48 @@ async def login(creds: dict):
 
 # Endpoint de productos
 @app.get("/data/articulos", dependencies=[Depends(verifyToken)], tags=["Articulos"])
-async def get_articulos(token: str = Depends(verifyToken)):
-    return await proxy_get("/data/articulos", token)
+async def getArticulos(token: str = Depends(verifyToken)):
+    return await proxyGet("/data/articulos", token)
 
 # Endpoint de un producto
 @app.get("/data/articulos/{aid}", dependencies=[Depends(verifyToken)], tags=["Articulos"])
-async def get_articulo(aid: str, token: str = Depends(verifyToken)):
-    return await proxy_get(f"/data/articulos/{aid}", token)
+async def getArticulo(aid: str, token: str = Depends(verifyToken)):
+    return await proxyGet(f"/data/articulos/{aid}", token)
 
 # Endpoint de sucursales
 @app.get("/data/sucursales", dependencies=[Depends(verifyToken)],tags=["Sucursales"])
-async def get_sucursales(token: str = Depends(verifyToken)):
-    return await proxy_get("/data/sucursales", token)
+async def getSucursales(token: str = Depends(verifyToken)):
+    return await proxyGet("/data/sucursales", token)
 
 # Endpoint de sucursal
 @app.get("/data/sucursales/{sid}", dependencies=[Depends(verifyToken)], tags=["Sucursales"])
-async def get_sucursal(sid: str, token: str = Depends(verifyToken)):
-    return await proxy_get(f"/data/sucursales/{sid}", token)
+async def getSucursal(sid: str, token: str = Depends(verifyToken)):
+    return await proxyGet(f"/data/sucursales/{sid}", token)
 
 # Endpoint de vendedores
 @app.get("/data/vendedores", dependencies=[Depends(verifyToken)],tags=["Vendedores"])
-async def get_vendedor(token: str = Depends(verifyToken)):
-    return await proxy_get(f"/data/vendedores", token)
+async def getVendedor(token: str = Depends(verifyToken)):
+    return await proxyGet(f"/data/vendedores", token)
 
 # Endpoint de un vendedor
 @app.get("/data/vendedores/{vid}", dependencies=[Depends(verifyToken)],tags=["Vendedores"])
-async def get_vendedor(vid: str, token: str = Depends(verifyToken)):
-    return await proxy_get(f"/data/vendedores/{vid}", token)
+async def getVendedor(vid: str, token: str = Depends(verifyToken)):
+    return await proxyGet(f"/data/vendedores/{vid}", token)
 
 # Endpoint de agregado de venta
-@app.post("/data/articulos/venta/{aid}", dependencies=[Depends(verifyToken)], tags=["Ventas"])
-async def post_venta(aid: str, body: dict, token: str = Depends(verifyToken)):
-    return await proxy_post(f"/data/articulos/venta/{aid}", body, token)
+@app.put("/data/articulos/venta/{aid}", dependencies=[Depends(verifyToken)], tags=["Ventas"])
+async def postVenta(aid: str, cantidad: int = Query(...), token: str = Depends(verifyToken)):
+    return await proxyPut(f"/data/articulos/venta/{aid}?cantidad={cantidad}", headers={"x-authentication": token})
 
 # Sirve la Web
 @app.get("/", tags=["Web"])
-async def root():
+async def HTML():
     return FileResponse("index.html")
 
 @app.get("/styles.css", tags=["Web"])
-async def css():
+async def CSS():
     return FileResponse("styles.css", media_type="text/css")
 
 @app.get("/script.js", tags=["Web"])
-async def js():
+async def JS():
     return FileResponse("script.js", media_type="application/javascript")
