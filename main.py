@@ -31,17 +31,28 @@ load_dotenv()
 
 API_BASE = os.getenv('API_BASE')
 FIXED_TOKEN = os.getenv('FIXED_TOKEN')
+VENDOR_ALLOW_TOKEN = os.getenv("VENDOR_ALLOW_TOKEN")
+VENDOR_DENY_TOKEN  = os.getenv("VENDOR_DENY_TOKEN")
 
-# Verifica el token en el header 'x-authentication'
-def verifyToken(x_authentication: str = Header(None, alias="x-authentication")) -> str:
+def verifyToken(
+    x_authentication: str = Header(None, alias="x-authentication")
+):
     """
-    Lee el header 'x-authentication' y verifica que coincida con FIXED_TOKEN.
+    Sólo acepta el FIXED_TOKEN para autenticar cualquier endpoint.
     """
-    if not x_authentication:
-        raise HTTPException(status_code=401, detail="Missing x-authentication header")
     if x_authentication != FIXED_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid token")
-    return x_authentication  # devolvemos el token validado
+        raise HTTPException(403, "Token inválido")
+    return x_authentication
+
+def verifyVendorToken(
+    x_vendor_token: str = Header(None, alias="x-vendor-token")
+):
+    """
+    Sólo permite el VENDOR_ALLOW_TOKEN.
+    """
+    if x_vendor_token != VENDOR_ALLOW_TOKEN:
+        raise HTTPException(403, "No tienes permiso para este recurso")
+    return x_vendor_token
 
 # Proxy de todos los endpoints bajo /data/*
 async def proxyGet(path: str, token: str):
@@ -69,7 +80,11 @@ async def login(creds: dict):
     pwd  = creds.get("password")
     for u in USERS:
         if u["user"] == user and u["password"] == pwd:
-            return {"token": FIXED_TOKEN, "role": u["role"]}
+            if u["role"] == "service_account":
+                vendor_tok = VENDOR_DENY_TOKEN
+            else:
+                vendor_tok = VENDOR_ALLOW_TOKEN
+            return {"token": FIXED_TOKEN, "role": u["role"], "vendorToken": vendor_tok}
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 # Endpoint de productos
@@ -93,12 +108,12 @@ async def getSucursal(sid: str, token: str = Depends(verifyToken)):
     return await proxyGet(f"/data/sucursales/{sid}", token)
 
 # Endpoint de vendedores
-@app.get("/data/vendedores", dependencies=[Depends(verifyToken)],tags=["Vendedores"])
+@app.get("/data/vendedores", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Vendedores"])
 async def getVendedor(token: str = Depends(verifyToken)):
     return await proxyGet(f"/data/vendedores", token)
 
 # Endpoint de un vendedor
-@app.get("/data/vendedores/{vid}", dependencies=[Depends(verifyToken)],tags=["Vendedores"])
+@app.get("/data/vendedores/{vid}", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Vendedores"])
 async def getVendedor(vid: str, token: str = Depends(verifyToken)):
     return await proxyGet(f"/data/vendedores/{vid}", token)
 
