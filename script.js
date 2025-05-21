@@ -184,8 +184,6 @@ function showOrderForm() {
   formContainerEl.innerHTML = `
     <label>ID de artículo:</label>
     <input type="text" id="input-order-article" placeholder="e.j. ART001" />
-    <label>ID de sucursal:</label>
-    <input type="text" id="input-order-branch" placeholder="e.j. SC001" />
     <label>Cantidad:</label>
     <input type="number" id="input-order-qty" placeholder="e.j. 5" />
     <button onclick="placeOrder()">Enviar Pedido</button>
@@ -194,15 +192,25 @@ function showOrderForm() {
 
 async function placeOrder() {
   const aid = document.getElementById("input-order-article").value;
-  const sid = document.getElementById("input-order-branch").value;
   const qty = parseInt(document.getElementById("input-order-qty").value, 10);
-  const res = await fetch(`/data/articulos/venta/${aid}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ sucursal: sid, articulo: aid, cantidad: qty })
-  });
+
+  const res = await fetch(
+    `/data/articulos/venta/${aid}?cantidad=${qty}`,
+    {
+      method: "PUT",
+      headers: authHeaders(),
+    }
+  );
+
   const data = await res.json();
   showResponse(data);
+
+  await reloadArticles();
+}
+
+async function reloadArticles() {
+  const res = await fetch("/data/articulos", { headers: authHeaders() });
+  allArticles = await res.json();
 }
 
 // ----------------- SUCURSALES -----------------

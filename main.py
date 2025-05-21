@@ -29,11 +29,13 @@ USERS = [
 
 load_dotenv()
 
+# Variables de entorno
 API_BASE = os.getenv('API_BASE')
 FIXED_TOKEN = os.getenv('FIXED_TOKEN')
 VENDOR_ALLOW_TOKEN = os.getenv("VENDOR_ALLOW_TOKEN")
 VENDOR_DENY_TOKEN  = os.getenv("VENDOR_DENY_TOKEN")
 
+# Verifica el token de autenticación
 def verifyToken(
     x_authentication: str = Header(None, alias="x-authentication")
 ):
@@ -44,6 +46,7 @@ def verifyToken(
         raise HTTPException(403, "Token inválido")
     return x_authentication
 
+# Verifica el token de empresa externa
 def verifyVendorToken(
     x_vendor_token: str = Header(None, alias="x-vendor-token")
 ):
@@ -55,6 +58,7 @@ def verifyVendorToken(
     return x_vendor_token
 
 # Proxy de todos los endpoints bajo /data/*
+
 async def proxyGet(path: str, token: str):
     headers = {"x-authentication": token}
     async with httpx.AsyncClient() as client:
