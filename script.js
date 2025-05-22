@@ -165,48 +165,65 @@ function addToCart(article) {
 
 async function updateCartDisplay() {
   cartItemsEl.innerHTML = "";
-  let total = 0;
+  let totalCLP = 0;
   for (const item of cart) {
-    const el = document.createElement("div");
-    el.innerHTML = `<p>${item.nombre} - $${item.precio}</p>`;
-    cartItemsEl.appendChild(el);
-    total += item.precio;
+    cartItemsEl.innerHTML += `<div><p>${item.nombre} - $${item.precio} CLP</p></div>`;
+    totalCLP += item.precio;
   }
 
-  if (currentCurrency !== "CLP") {
+  if (currentCurrency === "USD") {
     try {
-      const rate = await getConversionRate("CLP", currentCurrency);
-      cartTotalEl.textContent = (total * rate).toFixed(2);
-      currencyEl.textContent = currentCurrency;
+      const rate = await getConversionRate("CLP", "USD");
+      const totalUSD = (totalCLP * rate).toFixed(2);
+      cartTotalEl.textContent = totalUSD;
+      currencyEl.textContent = "USD";
     } catch (err) {
-      console.error("Error en la conversión de moneda:", err);
+      console.error(err);
       payStatusEl.textContent = "Error al convertir moneda";
     }
   } else {
-    cartTotalEl.textContent = total.toFixed(2);
+    cartTotalEl.textContent = totalCLP.toFixed(2);
     currencyEl.textContent = "CLP";
   }
 }
 
 async function getConversionRate(from, to) {
-  const res = await fetch(`/convert?from_currency=${from}&to_currency=${to}`);
+  const res = await fetch(`/currency?code=${from}`);
   if (!res.ok) throw new Error("Error al obtener tasa de cambio");
   const { rate } = await res.json();
   return rate;
 }
 
-const stripe = Stripe("pk_test_51RRItsRXCXf0yPIP6ip1VXe9nwe770cc0TaOXOPH86wPgVJdl1wfuHWx8DaWO3IAMKfO0OBkwHIxhf0lpPcCyJkD00iYlMrcwV");  // Tu clave pública Stripe
+let stripe;
+
+async function initStripe() {
+  try {
+    const res = await fetch("/config");
+    const data = await res.json();
+    stripe = Stripe(data.publicKey);
+  } catch (e) {
+    console.error("Error al obtener la clave pública de Stripe:", e);
+  }
+}
+
+initStripe();
 
 async function pay() {
-  if (cart.length === 0) {
-    return alert("Carrito vacío");
+  if (cart.length === 0) return alert("Carrito vacío");
+
+  let rate = 1;
+  if (currentCurrency === "USD") {
+    rate = await getConversionRate("CLP", "USD");
   }
 
   const items = cart.map(item => ({
     id:       item.id,
     name:     item.nombre,
-    price:    item.precio,
-    quantity: 1
+    price:    currentCurrency === "USD"
+                ? Math.round(item.precio * rate * 100)
+                : item.precio * 100,
+    quantity: 1,
+    currency: currentCurrency.toLowerCase()
   }));
 
   try {
@@ -215,22 +232,11 @@ async function pay() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(items)
     });
-
-    let data;
-    try {
-      data = await response.json();
-    } catch (jsonErr) {
-      throw new Error("Respuesta no JSON");
-    }
-
-    if (!response.ok) {
-      throw new Error(data.detail ? JSON.stringify(data.detail) : "Error desconocido");
-    }
-
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Error desconocido");
     window.location = data.url;
-
   } catch (err) {
-    console.error("🔥 Error al crear la sesión:", err);
+    console.error(err);
     payStatusEl.style.color = "red";
     payStatusEl.textContent = "❌ Error al crear la sesión: " + err.message;
   }

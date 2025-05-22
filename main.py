@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Query, Body
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 import stripe, os
 import os
 from dotenv import load_dotenv
@@ -45,10 +45,17 @@ class Item(BaseModel):
     name: str
     price: int
     quantity: int
+    currency: str
+
+    @validator("currency")
+    def valid_currency(cls, v):
+        if v not in ("clp", "usd"):
+            raise ValueError("currency debe ser 'clp' o 'usd'")
+        return v
 
 # Endpoint de Stripe
-@app.post("/create-checkout-session")
-async def create_checkout_session(items: list[Item]):
+@app.post("/create-checkout-session", tags=["Stripe"])
+async def createCheckoutSession(items: list[Item]):
     try:
         line_items = []
         for item in items:
@@ -128,22 +135,22 @@ async def login(creds: dict):
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
     
 # Endpoint de Divisas
-@app.get("/convert", tags=["Divisas"])
-async def convert_currency(
-    from_currency: str = Query(..., min_length=3, max_length=3),
-    to_currency:   str = Query(..., min_length=3, max_length=3),
+@app.get("/currency", tags=["Divisas"])
+async def get_appnexus_rate(
+    code: str = Query(..., min_length=3, max_length=3, description="Código ISO de la moneda origen (ej. CLP)")
 ):
     """
-    Convierte montos entre monedas usando ExchangeRate-Host.
-    Ejemplo: /convert?from_currency=CLP&to_currency=USD
+    Devuelve la tasa CLP → USD según AppNexus (rate_per_usd).
     """
-    url = f"https://api.exchangerate.host/convert?from={from_currency}&to={to_currency}"
+    url = f"https://api.appnexus.com/currency?code={code}&show_rate=true"
     async with httpx.AsyncClient() as client:
         r = await client.get(url)
     data = r.json()
-    if not data.get("success"):
-        raise HTTPException(502, "Error al obtener tasa de cambio")
-    return {"rate": data["result"]}
+    resp = data.get("response", {})
+    if resp.get("status") != "OK":
+        raise HTTPException(status_code=502, detail="Error al consultar tasa AppNexus")
+    rate_per_usd = float(resp["currency"]["rate_per_usd"])
+    return {"rate": 1 / rate_per_usd}
 
 # Endpoint de productos
 @app.get("/data/articulos", dependencies=[Depends(verifyToken)], tags=["Articulos"])
@@ -206,3 +213,11 @@ async def success_page():
 @app.get("/cancel", tags=["Web"])
 async def cancel_page():
     return FileResponse("cancel.html", media_type="text/html")
+
+# Code Stripe
+@app.get("/config", tags=["Stripe"])
+async def getStripePublicKey():
+    public_key = os.getenv("STRIPE_PUBLISHABLE_KEY")
+    if not public_key:
+        raise HTTPException(status_code=500, detail="Clave pública de Stripe no configurada")
+    return {"publicKey": public_key}
