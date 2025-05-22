@@ -1,0 +1,46 @@
+[
+  {
+    "subcategoria": "Herramientas De Campo",
+    "marca": "CAT",
+    "categoria": "Herramientas Manuales",
+    "stock": 150,
+    "nombre": "Pala",
+    "id": "ART123",
+    "desc": 35,
+    "new": "True",
+    "precio": 12990
+  },
+  {
+    "subcategoria": "Adesivos",
+    "marca": "Easy",
+    "categoria": "Herramientas Manuales",
+    "stock": 200,
+    "nombre": "Pegamento",
+    "id": "ART124",
+    "desc": 50,
+    "new": "True",
+    "precio": 1980
+  },
+  {
+    "subcategoria": "Adesivos",
+    "marca": "Extroyer",
+    "categoria": "Herramientas Manuales",
+    "stock": 100,
+    "nombre": "Cinta Spiderman",
+    "id": "ART125",
+    "desc": 75,
+    "new": "True",
+    "precio": 9990
+  },
+  {
+    "subcategoria": "Lapiceria",
+    "marca": "Faber Castel",
+    "categoria": "Herramientas Manuales",
+    "stock": 190,
+    "nombre": "Lapiz pasta azul",
+    "id": "ART126",
+    "desc": 10,
+    "new": "True",
+    "precio": 990
+  }
+]

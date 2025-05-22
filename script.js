@@ -211,19 +211,12 @@ initStripe();
 async function pay() {
   if (cart.length === 0) return alert("Carrito vacío");
 
-  let rate = 1;
-  if (currentCurrency === "USD") {
-    rate = await getConversionRate("CLP", "USD");
-  }
-
   const items = cart.map(item => ({
     id:       item.id,
     name:     item.nombre,
-    price:    currentCurrency === "USD"
-                ? Math.round(item.precio * rate * 100)
-                : item.precio * 100,
+    price:    item.precio,
     quantity: 1,
-    currency: currentCurrency.toLowerCase()
+    currency: "clp"
   }));
 
   try {
