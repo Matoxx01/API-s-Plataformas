@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pago Exitoso – FERREMAS</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>✅ ¡Pago Exitoso!</h1>
+    <p>Tu compra se ha procesado correctamente.</p>
+    <p>Session ID: <strong id="session-id"></strong></p>
+    <button onclick="goHome()">Volver al inicio</button>
+  </div>
+
+  <script>
+    // Obtiene session_id de la URL
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    document.getElementById('session-id').textContent = sessionId || '–';
+
+    function goHome() {
+      window.location = '/';
+    }
+  </script>
+</body>
+</html>

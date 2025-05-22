@@ -181,14 +181,28 @@ async def postVenta(aid: str, cantidad: int = Query(...), token: str = Depends(v
     return await proxyPut(f"/data/articulos/venta/{aid}?cantidad={cantidad}", headers={"x-authentication": token})
 
 # Sirve la Web
+
+# HTML
 @app.get("/", tags=["Web"])
 async def HTML():
     return FileResponse("index.html")
 
+# CSS
 @app.get("/styles.css", response_class=FileResponse, tags=["Web"])
 async def CSS():
     return FileResponse(path="styles.css", media_type="text/css",headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Pragma": "no-cache"})
 
+# JS
 @app.get("/script.js", tags=["Web"])
 async def JS():
     return FileResponse("script.js", media_type="application/javascript",headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0","Pragma": "no-cache"})
+
+# Página de éxito
+@app.get("/success", tags=["Web"])
+async def success_page():
+    return FileResponse("success.html", media_type="text/html")
+
+# Página de cancelación
+@app.get("/cancel", tags=["Web"])
+async def cancel_page():
+    return FileResponse("cancel.html", media_type="text/html")
