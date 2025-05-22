@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Body
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from pydantic import BaseModel
+import stripe, os
 import os
 from dotenv import load_dotenv
 
@@ -34,6 +36,40 @@ API_BASE = os.getenv('API_BASE')
 FIXED_TOKEN = os.getenv('FIXED_TOKEN')
 VENDOR_ALLOW_TOKEN = os.getenv("VENDOR_ALLOW_TOKEN")
 VENDOR_DENY_TOKEN  = os.getenv("VENDOR_DENY_TOKEN")
+URL = os.getenv("URL")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# Info Productos para Stripe
+class Item(BaseModel):
+    id: str
+    name: str
+    price: int
+    quantity: int
+
+# Endpoint de Stripe
+@app.post("/create-checkout-session")
+async def create_checkout_session(items: list[Item]):
+    try:
+        line_items = []
+        for item in items:
+            line_items.append({
+                "price_data": {
+                    "currency": "clp", 
+                    "unit_amount": item.price,
+                    "product_data": {"name": item.name}
+                },
+                "quantity": item.quantity
+            })
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="payment",
+            line_items=line_items,
+            success_url=f"{URL}/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{URL}/cancel"
+        )
+        return {"url": checkout_session.url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # Verifica el token de autenticación
 def verifyToken(
@@ -90,6 +126,24 @@ async def login(creds: dict):
                 vendor_tok = VENDOR_ALLOW_TOKEN
             return {"token": FIXED_TOKEN, "role": u["role"], "vendorToken": vendor_tok}
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+# Endpoint de Divisas
+@app.get("/convert", tags=["Divisas"])
+async def convert_currency(
+    from_currency: str = Query(..., min_length=3, max_length=3),
+    to_currency:   str = Query(..., min_length=3, max_length=3),
+):
+    """
+    Convierte montos entre monedas usando ExchangeRate-Host.
+    Ejemplo: /convert?from_currency=CLP&to_currency=USD
+    """
+    url = f"https://api.exchangerate.host/convert?from={from_currency}&to={to_currency}"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+    data = r.json()
+    if not data.get("success"):
+        raise HTTPException(502, "Error al obtener tasa de cambio")
+    return {"rate": data["result"]}
 
 # Endpoint de productos
 @app.get("/data/articulos", dependencies=[Depends(verifyToken)], tags=["Articulos"])
@@ -131,10 +185,10 @@ async def postVenta(aid: str, cantidad: int = Query(...), token: str = Depends(v
 async def HTML():
     return FileResponse("index.html")
 
-@app.get("/styles.css", tags=["Web"])
+@app.get("/styles.css", response_class=FileResponse, tags=["Web"])
 async def CSS():
-    return FileResponse("styles.css", media_type="text/css")
+    return FileResponse(path="styles.css", media_type="text/css",headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Pragma": "no-cache"})
 
 @app.get("/script.js", tags=["Web"])
 async def JS():
-    return FileResponse("script.js", media_type="application/javascript")
+    return FileResponse("script.js", media_type="application/javascript",headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0","Pragma": "no-cache"})

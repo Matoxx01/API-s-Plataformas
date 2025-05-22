@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-  max-width: 720px;
+  max-width: 780px;
   margin: 40px auto;
   background: white;
   padding: 24px;
@@ -75,9 +75,33 @@ button:hover {
   animation: scale-down-center 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
 }
 
+#cardNumber {
+  position: absolute !important;
+  top: -10px;
+  right: -10px;
+  background-color: rgb(12, 182, 12);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 4px rgba(0,0,0,0.3);
+  z-index: 1;
+}
+
 .card:hover {
   animation: scale-up-center 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
   cursor: pointer;
+  z-index: 2000;
+}
+
+.card:active {
+  animation: scale-down-center 0.3s cubic-bezier(0.39, 0.575, 0.565, 1) both;
+  z-index: 2000;
 }
 
 .card img {
@@ -157,7 +181,7 @@ button:hover {
 #cards-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 30px;
   justify-content: center;
 }
 

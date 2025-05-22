@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>FERREMAS</title>
-  <link rel="stylesheet" href="styles.css" />
+  <script>const link = document.createElement('link');link.rel = 'stylesheet';link.href = `styles.css?ts=${Date.now()}`;document.head.appendChild(link);</script>
 </head>
 <body>
   <div class="container">
@@ -50,7 +50,21 @@
       </div>
       
     </div>
+
+    <div id="cart-container" style="display:none; position:absolute; top:100px; right:20px; width:300px; background:#f8f8f8; border:1px solid #ccc; padding:10px; border-radius:8px;">
+      <h3>🛒 Carrito</h3>
+      <div id="cart-items"></div>
+      <p>Total: $<span id="cart-total">0</span> <span id="currency">CLP</span></p>
+      <select id="currency-select">
+        <option value="CLP">CLP</option>
+        <option value="USD">USD</option>
+      </select>
+      <button onclick="pay()">Pagar</button>
+      <p id="pay-status" style="color:green;"></p>
+    </div>
+
   </div>
-  <script src="script.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>const ts = new Date().getTime();document.write(`<script src="script.js?ts=${ts}"><\/script>`);</script>
 </body>
 </html>
