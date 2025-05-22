@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Query, Body
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Path
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from pydantic import BaseModel, validator
 import stripe, os
+from fastapi.staticfiles import StaticFiles
 import os
+import json
 from dotenv import load_dotenv
 
 app = FastAPI(
@@ -28,6 +30,11 @@ USERS = [
     {"user": "stripe_sa", "password": "dzkQqDL9XZH33YDzhmsf", "role": "service_account"},
     {"user": "Admin", "password": "1234", "role": "admin"},
 ]
+
+DB_FILE = "db/productos.json"
+
+# Montar DB
+app.mount("/db", StaticFiles(directory="db"), name="db")
 
 load_dotenv()
 
@@ -186,6 +193,36 @@ async def getVendedor(vid: str, token: str = Depends(verifyToken)):
 @app.put("/data/articulos/venta/{aid}", dependencies=[Depends(verifyToken)], tags=["Ventas"])
 async def postVenta(aid: str, cantidad: int = Query(...), token: str = Depends(verifyToken)):
     return await proxyPut(f"/data/articulos/venta/{aid}?cantidad={cantidad}", headers={"x-authentication": token})
+
+# Endpoint de agregado de venta local
+@app.put("/data/local/articulos/venta/{aid}", tags=["Ventas"])
+async def venta_local(
+    aid: str = Path(..., description="ID del artículo local"),
+    cantidad: int = Query(..., gt=0, description="Cantidad a descontar")
+):
+    try:
+        with open(DB_FILE, "r+", encoding="utf-8") as f:
+            productos = json.load(f)
+
+            for prod in productos:
+                if prod.get("id") == aid:
+                    if prod["stock"] < cantidad:
+                        raise HTTPException(400, "Stock insuficiente")
+                    prod["stock"] -= cantidad
+
+                    f.seek(0)
+                    json.dump(productos, f, ensure_ascii=False, indent=2)
+                    f.truncate()
+
+                    return {"message": f"Venta local exitosa. Stock nuevo: {prod['stock']}"}
+
+            raise HTTPException(404, "Artículo local no encontrado")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("Error en venta_local:", e)
+        raise HTTPException(500, f"Error interno al procesar venta: {e}")
 
 # Sirve la Web
 

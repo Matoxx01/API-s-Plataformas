@@ -2,6 +2,8 @@ let token = null;
 let role = null;
 let vendorToken = null;
 let allArticles = [];
+let currentCategory = null;
+let currentSubcats  = [];
 
 // Elementos del DOM
 const formSectionEl     = document.getElementById("form-section");
@@ -65,9 +67,15 @@ async function showProducts() {
   catalogSectionEl.style.display = "block";
 
   if (!allArticles.length) {
-    const res = await fetch("/data/articulos", { headers: authHeaders() });
-    allArticles = await res.json();
+    const resApi   = await fetch("/data/articulos", { headers: authHeaders() });
+    const apiArts  = (await resApi.json()).map(a => ({ ...a, source: "api" }));
+
+    const resLocal = await fetch("/db/productos.json");
+    const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
+
+    allArticles = [...apiArts, ...locArts];
   }
+
   catalogButtonsEl.innerHTML = "";
   cardsContainerEl.innerHTML = "";
 
@@ -87,7 +95,11 @@ async function showProducts() {
   Object.keys(categories).forEach(cat => {
     const btn = document.createElement("button");
     btn.textContent = cat;
-    btn.onclick = () => renderCategory(cat, categories[cat]);
+    btn.onclick = () => {
+      currentCategory = cat;
+      currentSubcats  = categories[cat];
+      renderCategory(cat, categories[cat]);
+    };
     catalogButtonsEl.appendChild(btn);
   });
 }
@@ -100,19 +112,47 @@ function renderCategory(catName, subcats) {
     return article.categoria === catName || subcats.includes(article.categoria);
   });
 
+  // Poner primero los productos con descuento
+  filtered.sort((a, b) => {
+    const aHas = a.desc && !isNaN(a.desc) && a.desc > 0;
+    const bHas = b.desc && !isNaN(b.desc) && b.desc > 0;
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return 0;
+  });
+
   // Mostrar cards
   filtered.forEach(article => {
+    let precioFinal = article.precio;
+    if (article.desc && !isNaN(article.desc) && article.desc > 0) {
+      precioFinal = Math.round(article.precio / 100 * (100 - article.desc));
+    }
+
+    // Creamos la card
     const card = document.createElement("div");
     card.className = "card";
 
+    // Badge “new” si corresponde
+    const badge = article.new === "True" || article.new === true
+      ? `<div class="new-badge">new</div>`
+      : "";
+
     card.innerHTML = `
-      <div id="cardNumber" class="cardNumber" style="display:none;">1</div>
+      ${badge}
+      <div class="cardNumber" style="display:none;">0</div>
       <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png" alt="Product image" />
       <h3>${article.nombre}</h3>
       <p class="marca">${article.marca || 'Sin marca'}</p>
       <p id="laid">${article.id}</p>
       <p class="stock">Stock: ${article.stock}</p>
-      <div class="precio"><p>$${article.precio}</p></div>
+      <div class="precio">
+        ${article.desc
+          ? `<p class="desc" >${article.desc}%</p>
+            <p class="old-price">$${article.precio}</p>
+            <p class="discounted-price">$${precioFinal}</p>`
+          : `<p>$${precioFinal}</p>`
+        }
+      </div>
     `;
 
     let count = 0;
@@ -165,11 +205,36 @@ function addToCart(article) {
 
 async function updateCartDisplay() {
   cartItemsEl.innerHTML = "";
-  let totalCLP = 0;
+
+  const summary = {};
   for (const item of cart) {
-    cartItemsEl.innerHTML += `<div><p>${item.nombre} - $${item.precio} CLP</p></div>`;
-    totalCLP += item.precio;
+    if (!summary[item.id]) {
+      summary[item.id] = { item, count: 0 };
+    }
+    summary[item.id].count++;
   }
+
+  let totalCLP = 0;
+
+  const calcUnitPrice = it => {
+    if (it.desc && !isNaN(it.desc) && it.desc > 0) {
+      return Math.round(it.precio / 100 * (100 - it.desc));
+    }
+    return it.precio;
+  };
+
+  Object.values(summary).forEach(({ item, count }) => {
+    const unitPrice = calcUnitPrice(item);
+    const lineTotal = unitPrice * count;
+    totalCLP += lineTotal;
+
+    const prefix = count > 1 ? `${count}x ` : "";
+    cartItemsEl.innerHTML += `
+      <div>
+        <p>${prefix}${item.nombre} - $${lineTotal} CLP</p>
+      </div>
+    `;
+  });
 
   if (currentCurrency === "USD") {
     try {
@@ -182,7 +247,7 @@ async function updateCartDisplay() {
       payStatusEl.textContent = "Error al convertir moneda";
     }
   } else {
-    cartTotalEl.textContent = totalCLP.toFixed(2);
+    cartTotalEl.textContent = Math.round(totalCLP);
     currencyEl.textContent = "CLP";
   }
 }
@@ -307,26 +372,55 @@ function showOrderForm() {
 }
 
 async function placeOrder() {
-  const aid = document.getElementById("input-order-article").value;
+  const aidRaw  = document.getElementById("input-order-article").value;
+  const aidTrim = aidRaw.trim();
+  const aidUp = aidTrim.toUpperCase();
   const qty = parseInt(document.getElementById("input-order-qty").value, 10);
 
-  const res = await fetch(
-    `/data/articulos/venta/${aid}?cantidad=${qty}`,
-    {
-      method: "PUT",
-      headers: authHeaders(),
-    }
-  );
+  let article = allArticles.find(a => a.id === aidTrim);
 
-  const data = await res.json();
-  showResponse(data);
+  if (!article) {
+    article = allArticles.find(a => String(a.id).trim().toUpperCase() === aidUp);
+  }
 
-  await reloadArticles();
+  if (!article) {
+    return showResponse(`Artículo con ID "${aidRaw}" no encontrado.`);
+  }
+
+  let url, opts;
+  if (article.source === "local") {
+    url  = `/data/local/articulos/venta/${encodeURIComponent(article.id)}?cantidad=${qty}`;
+    opts = { method: "PUT" };
+  } else {
+    url  = `/data/articulos/venta/${encodeURIComponent(article.id)}?cantidad=${qty}`;
+    opts = { method: "PUT", headers: authHeaders() };
+  }
+
+  const res = await fetch(url, opts);
+
+  let data;
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) {
+    data = await res.json();
+  } else {
+    data = { error: await res.text() };
+  }
+
+  if (res.ok) {
+    showResponse(data.message);
+    await reloadArticles();
+  } else {
+    showResponse(data.error);
+  }
+  
 }
 
 async function reloadArticles() {
-  const res = await fetch("/data/articulos", { headers: authHeaders() });
-  allArticles = await res.json();
+  const resApi   = await fetch("/data/articulos", { headers: authHeaders() });
+  const apiArts  = (await resApi.json()).map(a => ({ ...a, source: "api" }));
+  const resLocal = await fetch("/db/productos.json");
+  const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
+  allArticles = [...apiArts, ...locArts];
 }
 
 // ----------------- SUCURSALES -----------------
