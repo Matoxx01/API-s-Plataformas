@@ -195,6 +195,21 @@ button:hover {
   font-size: 16px;
 }
 
+.textareavendor {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: none;
+  height: 2.5em;
+  line-height: 1.2;
+  font-family: inherit;
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
 /* Botones de catálogo */
 .catalog-buttons {
   display: flex;

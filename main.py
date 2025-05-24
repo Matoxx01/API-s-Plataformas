@@ -2,11 +2,13 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Query, Path
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, EmailStr, validator
 import stripe, os
 from fastapi.staticfiles import StaticFiles
 import os
 import json
+import smtplib
+from email.message import EmailMessage
 from dotenv import load_dotenv
 
 app = FastAPI(
@@ -46,6 +48,12 @@ VENDOR_DENY_TOKEN  = os.getenv("VENDOR_DENY_TOKEN")
 URL = os.getenv("URL")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# Info para Mail
+class EmailRequest(BaseModel):
+    to: EmailStr
+    subject: str
+    message: str
+
 # Info Productos para Stripe
 class Item(BaseModel):
     id: str
@@ -60,32 +68,7 @@ class Item(BaseModel):
             raise ValueError("currency debe ser 'clp' o 'usd'")
         return v
 
-# Endpoint de Stripe
-@app.post("/create-checkout-session", tags=["Stripe"])
-async def createCheckoutSession(items: list[Item]):
-    try:
-        line_items = []
-        for item in items:
-            line_items.append({
-                "price_data": {
-                    "currency": "clp", 
-                    "unit_amount": item.price,
-                    "product_data": {"name": item.name}
-                },
-                "quantity": item.quantity
-            })
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            mode="payment",
-            line_items=line_items,
-            success_url=f"{URL}/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{URL}/cancel"
-        )
-        return {"url": checkout_session.url}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-# Verifica el token de autenticación
+# Verifica Tokens
 def verifyToken(
     x_authentication: str = Header(None, alias="x-authentication")
 ):
@@ -96,7 +79,6 @@ def verifyToken(
         raise HTTPException(403, "Token inválido")
     return x_authentication
 
-# Verifica el token de empresa externa
 def verifyVendorToken(
     x_vendor_token: str = Header(None, alias="x-vendor-token")
 ):
@@ -113,7 +95,7 @@ async def proxyGet(path: str, token: str):
     headers = {"x-authentication": token}
     async with httpx.AsyncClient() as client:
         r = await client.get(f"{API_BASE}{path}", headers=headers)
-        return JSONResponse(status_code=r.status_code, content=r.json())
+        return r.json()
 
 async def proxyPost(path: str, body: dict, token: str):
     headers = {"x-authentication": token}
@@ -140,24 +122,6 @@ async def login(creds: dict):
                 vendor_tok = VENDOR_ALLOW_TOKEN
             return {"token": FIXED_TOKEN, "role": u["role"], "vendorToken": vendor_tok}
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    
-# Endpoint de Divisas
-@app.get("/currency", tags=["Divisas"])
-async def get_appnexus_rate(
-    code: str = Query(..., min_length=3, max_length=3, description="Código ISO de la moneda origen (ej. CLP)")
-):
-    """
-    Devuelve la tasa CLP → USD según AppNexus (rate_per_usd).
-    """
-    url = f"https://api.appnexus.com/currency?code={code}&show_rate=true"
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url)
-    data = r.json()
-    resp = data.get("response", {})
-    if resp.get("status") != "OK":
-        raise HTTPException(status_code=502, detail="Error al consultar tasa AppNexus")
-    rate_per_usd = float(resp["currency"]["rate_per_usd"])
-    return {"rate": 1 / rate_per_usd}
 
 # Endpoint de productos
 @app.get("/data/articulos", dependencies=[Depends(verifyToken)], tags=["Articulos"])
@@ -179,10 +143,24 @@ async def getSucursales(token: str = Depends(verifyToken)):
 async def getSucursal(sid: str, token: str = Depends(verifyToken)):
     return await proxyGet(f"/data/sucursales/{sid}", token)
 
-# Endpoint de vendedores
-@app.get("/data/vendedores", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Vendedores"])
-async def getVendedor(token: str = Depends(verifyToken)):
-    return await proxyGet(f"/data/vendedores", token)
+# Endpoint de vendedores por sucursal
+@app.get("/data/vendedores/sucursal/{bid}", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Vendedores"])
+async def getVendedor(bid: str, token: str = Depends(verifyToken)):
+    try:
+        print(f"Obteniendo vendedores para sucursal {bid}...")
+        all_vendedores = await proxyGet("/data/vendedores", token)
+        print(f"Respuesta de proxyGet: {all_vendedores}")
+
+        if not isinstance(all_vendedores, list):
+            raise Exception("El contenido recibido no es una lista")
+
+        vendedores_filtrados = [v for v in all_vendedores if v.get("sucursal") == bid]
+        print(f"Vendedores filtrados: {vendedores_filtrados}")
+        return vendedores_filtrados
+
+    except Exception as e:
+        print(f"Error al obtener vendedores: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint de un vendedor
 @app.get("/data/vendedores/{vid}", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Vendedores"])
@@ -196,7 +174,7 @@ async def postVenta(aid: str, cantidad: int = Query(...), token: str = Depends(v
 
 # Endpoint de agregado de venta local
 @app.put("/data/local/articulos/venta/{aid}", tags=["Ventas"])
-async def venta_local(
+async def ventaLocal(
     aid: str = Path(..., description="ID del artículo local"),
     cantidad: int = Query(..., gt=0, description="Cantidad a descontar")
 ):
@@ -221,8 +199,71 @@ async def venta_local(
     except HTTPException:
         raise
     except Exception as e:
-        print("Error en venta_local:", e)
+        print("Error en ventaLocal:", e)
         raise HTTPException(500, f"Error interno al procesar venta: {e}")
+
+# Endpoint de Divisas
+@app.get("/currency", tags=["Divisas"])
+async def getAppnexusRate(
+    code: str = Query(..., min_length=3, max_length=3, description="Código ISO de la moneda origen (ej. CLP)")
+):
+    """
+    Devuelve la tasa CLP → USD según AppNexus (rate_per_usd).
+    """
+    url = f"https://api.appnexus.com/currency?code={code}&show_rate=true"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+    data = r.json()
+    resp = data.get("response", {})
+    if resp.get("status") != "OK":
+        raise HTTPException(status_code=502, detail="Error al consultar tasa AppNexus")
+    rate_per_usd = float(resp["currency"]["rate_per_usd"])
+    return {"rate": 1 / rate_per_usd}
+
+# Endpoint de Stripe
+@app.post("/create-checkout-session", tags=["Stripe"])
+async def createCheckoutSession(items: list[Item]):
+    try:
+        line_items = []
+        for item in items:
+            line_items.append({
+                "price_data": {
+                    "currency": "clp", 
+                    "unit_amount": item.price,
+                    "product_data": {"name": item.name}
+                },
+                "quantity": item.quantity
+            })
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            mode="payment",
+            line_items=line_items,
+            success_url=f"{URL}/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{URL}/cancel"
+        )
+        return {"url": checkout_session.url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Endpoint de Mandado de Mail a Vendedor
+@app.post("/enviar-mensaje", dependencies=[Depends(verifyToken)], tags=["Mail"])
+async def enviarMensaje(email_data: EmailRequest):
+    gmail_user = os.getenv("GMAIL_USER")
+    gmail_pass = os.getenv("GMAIL_PASS")
+
+    msg = EmailMessage()
+    msg["From"] = gmail_user
+    msg["To"] = email_data.to
+    msg["Subject"] = email_data.subject
+    msg.set_content(email_data.message)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(gmail_user, gmail_pass)
+            smtp.send_message(msg)
+        return {"message": "Correo enviado exitosamente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al enviar correo: {str(e)}")
 
 # Sirve la Web
 
@@ -243,12 +284,12 @@ async def JS():
 
 # Página de éxito
 @app.get("/success", tags=["Web"])
-async def success_page():
+async def successPage():
     return FileResponse("success.html", media_type="text/html")
 
 # Página de cancelación
 @app.get("/cancel", tags=["Web"])
-async def cancel_page():
+async def cancelPage():
     return FileResponse("cancel.html", media_type="text/html")
 
 # Code Stripe

@@ -336,8 +336,19 @@ async function getBranch() {
   showResponse(data);
 }
 
-async function showVendors() {
-  const res = await fetch(`/data/vendedores`, { headers: authHeaders() });
+function showVendors() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de sucursal:</label>
+    <input type="text" id="input-branch-id" placeholder="e.j. SC001" />
+    <button onclick="getVendors()">Consultar</button>
+  `;
+}
+
+async function getVendors() {
+  const bid  = document.getElementById("input-branch-id").value;
+  const res = await fetch(`/data/vendedores/sucursal/${bid}`, { headers: authHeaders() });
   const data = await res.json();
   showResponse(data);
 }
@@ -421,6 +432,63 @@ async function reloadArticles() {
   const resLocal = await fetch("/db/productos.json");
   const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
   allArticles = [...apiArts, ...locArts];
+}
+
+function sendMail() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>ID de vendedor:</label>
+    <input type="text" id="input-vendor-id-mail" placeholder="e.j. V001" />
+    <label>Mensaje:</label>
+    <textarea class="textareavendor" id="input-vendor-message" rows="4" placeholder="Escribe tu mensaje aquí"></textarea>
+    <button onclick="submitVendorMessage()">Mandar</button>
+  `;
+}
+
+async function submitVendorMessage() {
+  const vid = document.getElementById("input-vendor-id-mail").value.trim();
+  const msg = document.getElementById("input-vendor-message").value.trim();
+  if (!vid || !msg) {
+    return showResponse("Debe indicar ID de vendedor y mensaje.");
+  }
+
+  try {
+    const resV = await fetch(`/data/vendedores/${encodeURIComponent(vid)}`, {
+      method: "GET",
+      headers: authHeaders()
+    });
+    if (!resV.ok) {
+      const err = await resV.json();
+      throw new Error(err.detail || `Error al buscar vendedor ${vid}`);
+    }
+    const vendedor = await resV.json();
+    const email = vendedor.email;
+    if (!email) {
+      throw new Error("El vendedor no tiene email registrado.");
+    }
+
+    const resM = await fetch("/enviar-mensaje", {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        to: email,
+        subject: `Mensaje desde FERREMAS a ${vendedor.nombre || vid}`,
+        message: msg
+      })
+    });
+    const dataM = await resM.json();
+    if (!resM.ok) {
+      throw new Error(dataM.detail || "Error al enviar el mensaje");
+    }
+
+    showResponse(dataM.message || "Mensaje enviado correctamente");
+  } catch (e) {
+    showResponse(`❌ ${e.message}`);
+  }
 }
 
 // ----------------- SUCURSALES -----------------
