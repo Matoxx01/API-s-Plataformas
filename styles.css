@@ -75,6 +75,15 @@ button:hover {
   animation: scale-down-center 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
 }
 
+.manageCard {
+    flex: 1;
+    display: flex;
+    max-height: 400px;
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: center;
+}
+
 .cardNumber {
   position: absolute;
   top: -10px;
@@ -195,6 +204,19 @@ button:hover {
   font-size: 16px;
 }
 
+.labelCheckboxx {
+  display: flex;
+  flex-direction: row;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.check {
+  width: 15px;
+  margin-left: 7px;
+  margin-top: 10px;
+}
+
 .textareavendor {
   width: 100%;
   margin: 8px 0;
@@ -203,7 +225,7 @@ button:hover {
   border: 1px solid #ccc;
   border-radius: 4px;
   resize: none;
-  height: 2.5em;
+  height: 100px;
   line-height: 1.2;
   font-family: inherit;
   box-sizing: border-box;

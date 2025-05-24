@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Query, Path
+from fastapi import FastAPI, HTTPException, Depends, Header, Query, Path, Body
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -264,6 +264,45 @@ async def enviarMensaje(email_data: EmailRequest):
         return {"message": "Correo enviado exitosamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al enviar correo: {str(e)}")
+    
+# Endpoint para actualizar desc y new en el JSON local
+@app.put("/data/local/articulos/{aid}", tags=["Articulos"])
+async def updateLocalArticle(
+    aid: str = Path(..., description="ID del artículo local"),
+    payload: dict = Body(...),
+):
+    """
+    Recibe JSON { desc: int, new: bool } y actualiza el artículo en db/productos.json.
+    """
+    try:
+        with open(DB_FILE, "r+", encoding="utf-8") as f:
+            productos = json.load(f)
+            found = False
+            for prod in productos:
+                if prod.get("id") == aid:
+                    # validaciones básicas
+                    desc = payload.get("desc")
+                    new_flag = payload.get("new")
+                    if not isinstance(desc, int) or desc < 0 or desc > 100:
+                        raise HTTPException(400, "El campo 'desc' debe ser un entero entre 0 y 100")
+                    if not isinstance(new_flag, bool):
+                        raise HTTPException(400, "El campo 'new' debe ser booleano")
+                    prod["desc"] = desc
+                    prod["new"]  = new_flag
+                    found = True
+                    break
+            if not found:
+                raise HTTPException(404, "Artículo no encontrado en local")
+            # sobrescribo el archivo
+            f.seek(0)
+            json.dump(productos, f, ensure_ascii=False, indent=2)
+            f.truncate()
+        return {"message": f"Artículo {aid} actualizado"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error interno: {e}")
+
 
 # Sirve la Web
 

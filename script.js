@@ -66,15 +66,13 @@ async function showProducts() {
   hideAllSections();
   catalogSectionEl.style.display = "block";
 
-  if (!allArticles.length) {
-    const resApi   = await fetch("/data/articulos", { headers: authHeaders() });
-    const apiArts  = (await resApi.json()).map(a => ({ ...a, source: "api" }));
+  const resApi   = await fetch("/data/articulos", { headers: authHeaders() });
+  const apiArts  = (await resApi.json()).map(a => ({ ...a, source: "api" }));
 
-    const resLocal = await fetch("/db/productos.json");
-    const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
+  const resLocal = await fetch(`/db/productos.json?ts=${Date.now()}`);
+  const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
 
-    allArticles = [...apiArts, ...locArts];
-  }
+  allArticles = [...apiArts, ...locArts];
 
   catalogButtonsEl.innerHTML = "";
   cardsContainerEl.innerHTML = "";
@@ -178,6 +176,94 @@ function renderCategory(catName, subcats) {
   // Mostrar también en la sección de respuesta
   responseSectionEl.style.display = "block";
   outputEl.textContent = JSON.stringify(filtered, null, 2);
+}
+
+// ----------------- GESTIÓN DE PRODUCTOS -----------------
+
+async function manageProducts() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <div style="display:flex; gap:24px;">
+      <div id="manage-cards" class="manageCard" ></div>
+      <div id="edit-form" style="flex:1;"></div>
+    </div>
+  `;
+
+  // cargo productos locales
+  const resLocal = await fetch(`/db/productos.json?ts=${Date.now()}`);
+  const productos = await resLocal.json();
+
+  const cardsEl = document.getElementById("manage-cards");
+  cardsEl.innerHTML = "";
+  productos.forEach(prod => {
+    const card = document.createElement("div");
+    card.className = "card";
+    let precioFinal = prod.precio;
+    if (prod.desc && !isNaN(prod.desc) && prod.desc > 0) {
+      precioFinal = Math.round(prod.precio / 100 * (100 - prod.desc));
+    }
+    card.innerHTML = `
+      ${prod.new === true || prod.new === "True"? `<div class="new-badge">NEW</div>` : ""}
+      <img src="https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png" alt="Product image" />
+      <h3>${prod.nombre}</h3>
+      <p class="marca">${prod.marca || 'Sin marca'}</p>
+      <p id="laid">${prod.id}</p>
+      <p class="stock">Stock: ${prod.stock}</p>
+      <div class="precio">
+        ${prod.desc
+          ? `<p class="desc" >${prod.desc || 0}%</p>
+            <p class="old-price">$${prod.precio}</p>
+            <p class="discounted-price">$${precioFinal}</p>`
+          : `<p>$${precioFinal}</p>`
+        }
+      </div>
+    `;
+    card.onclick = () => showEditForm(prod);
+    cardsEl.appendChild(card);
+  });
+}
+
+function showEditForm(prod) {
+  const formEl = document.getElementById("edit-form");
+  formEl.innerHTML = `
+    <p><b>Editar:</b> ${prod.nombre}</p>
+    <label>Descuento (%)</label>
+    <input type="number" id="edit-desc" min="0" max="100" value="${prod.desc||0}" />
+    <label class="labelCheckboxx">
+       Nuevo:
+       <input class="check" type="checkbox" id="edit-new" ${prod.new===true||prod.new==="True"?"checked":""}/>
+    </label>
+    <button style="margin-top:12px;" onclick="updateProduct('${prod.id}')">Actualizar</button>
+    <p id="edit-status"></p>
+  `;
+}
+
+async function updateProduct(id) {
+  const descVal = Number(document.getElementById("edit-desc").value);
+  const newVal  = document.getElementById("edit-new").checked;
+  const statusEl = document.getElementById("edit-status");
+  statusEl.textContent = "";
+
+  try {
+    const res = await fetch(`/data/local/articulos/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ desc: descVal, new: newVal })
+    });
+    if (!res.ok) throw new Error("Error al actualizar");
+    const data = await res.json();
+    statusEl.style.color = "green";
+    allArticles = [];
+    await reloadArticles();
+    manageProducts();
+    statusEl.textContent = "✅ Actualizado correctamente";
+    const updated = (await res.json());
+    showEditForm({ id, desc: descVal, new: newVal, nombre: "" });
+  } catch (e) {
+    statusEl.style.color = "red";
+    statusEl.textContent = "❌ " + e.message;
+  }
 }
 
 // ----------------------- PAGO -------------------------
@@ -429,7 +515,7 @@ async function placeOrder() {
 async function reloadArticles() {
   const resApi   = await fetch("/data/articulos", { headers: authHeaders() });
   const apiArts  = (await resApi.json()).map(a => ({ ...a, source: "api" }));
-  const resLocal = await fetch("/db/productos.json");
+  const resLocal = await fetch(`/db/productos.json?ts=${Date.now()}`);
   const locArts  = (await resLocal.json()).map(a => ({ ...a, source: "local" }));
   allArticles = [...apiArts, ...locArts];
 }

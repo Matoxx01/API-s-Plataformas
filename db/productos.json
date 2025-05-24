@@ -7,7 +7,7 @@
     "nombre": "Pala",
     "id": "ART123",
     "desc": 35,
-    "new": "True",
+    "new": true,
     "precio": 12990
   },
   {
