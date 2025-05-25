@@ -371,7 +371,7 @@ async function pay() {
   }));
 
   try {
-    const response = await fetch("/create-checkout-session", {
+    const response = await fetch("/createCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(items)
@@ -554,7 +554,7 @@ async function submitVendorMessage() {
       throw new Error("El vendedor no tiene email registrado.");
     }
 
-    const resM = await fetch("/enviar-mensaje", {
+    const resM = await fetch("/enviarMensaje", {
       method: "POST",
       headers: {
         ...authHeaders(),

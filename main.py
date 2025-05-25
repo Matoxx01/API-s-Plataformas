@@ -221,7 +221,7 @@ async def getAppnexusRate(
     return {"rate": 1 / rate_per_usd}
 
 # Endpoint de Stripe
-@app.post("/create-checkout-session", tags=["Stripe"])
+@app.post("/createCheckoutSession", tags=["Stripe"])
 async def createCheckoutSession(items: list[Item]):
     try:
         line_items = []
@@ -246,7 +246,7 @@ async def createCheckoutSession(items: list[Item]):
         raise HTTPException(status_code=400, detail=str(e))
 
 # Endpoint de Mandado de Mail a Vendedor
-@app.post("/enviar-mensaje", dependencies=[Depends(verifyToken)], tags=["Mail"])
+@app.post("/enviarMensaje", dependencies=[Depends(verifyToken)], tags=["Mail"])
 async def enviarMensaje(email_data: EmailRequest):
     gmail_user = os.getenv("GMAIL_USER")
     gmail_pass = os.getenv("GMAIL_PASS")
