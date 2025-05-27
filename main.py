@@ -3,11 +3,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from pydantic import BaseModel, EmailStr, validator
-import stripe, os
+import stripe, os, json, smtplib
 from fastapi.staticfiles import StaticFiles
-import os
-import json
-import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
@@ -54,7 +51,7 @@ class EmailRequest(BaseModel):
     subject: str
     message: str
 
-# Info Productos para Stripe
+# Modelo de Productos para Stripe
 class Item(BaseModel):
     id: str
     name: str
@@ -66,6 +63,21 @@ class Item(BaseModel):
     def valid_currency(cls, v):
         if v not in ("clp", "usd"):
             raise ValueError("currency debe ser 'clp' o 'usd'")
+        return v
+
+# Modelo de Creacion de Producto
+class NewProduct(BaseModel):
+    categoria: str
+    subcategoria: str
+    marca: str
+    nombre: str
+    stock: int
+    precio: int
+
+    @validator("stock", "precio")
+    def non_negative(cls, v):
+        if v < 0:
+            raise ValueError("Debe ser >= 0")
         return v
 
 # Verifica Tokens
@@ -266,7 +278,7 @@ async def enviarMensaje(email_data: EmailRequest):
         raise HTTPException(status_code=500, detail=f"Error al enviar correo: {str(e)}")
     
 # Endpoint para actualizar desc y new en el JSON local
-@app.put("/data/local/articulos/{aid}", tags=["Articulos"])
+@app.put("/data/local/articulos/{aid}", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Articulos"])
 async def updateLocalArticle(
     aid: str = Path(..., description="ID del artículo local"),
     payload: dict = Body(...),
@@ -303,6 +315,42 @@ async def updateLocalArticle(
     except Exception as e:
         raise HTTPException(500, f"Error interno: {e}")
 
+# Endpoint para agregar un producto JSON local
+@app.post("/data/product/new", dependencies=[Depends(verifyToken), Depends(verifyVendorToken)], tags=["Articulos"])
+async def createLocalProduct(payload: NewProduct):
+    try:
+        with open(DB_FILE, "r+", encoding="utf-8") as f:
+            productos = json.load(f)
+
+            sufijos = [
+                int(p["id"].replace("ART", "")) 
+                for p in productos 
+                if p.get("id", "").startswith("ART") and p["id"][3:].isdigit()
+            ]
+            next_num = max(sufijos, default=100) + 1
+            new_id = f"ART{next_num}"
+
+            new_prod = {
+                "id":         new_id,
+                "categoria":  payload.categoria,
+                "subcategoria": payload.subcategoria,
+                "marca":      payload.marca,
+                "nombre":     payload.nombre,
+                "stock":      payload.stock,
+                "precio":     payload.precio,
+                "desc":       0,
+                "new":        False
+            }
+
+            productos.append(new_prod)
+            f.seek(0)
+            json.dump(productos, f, ensure_ascii=False, indent=2)
+            f.truncate()
+
+        return JSONResponse(status_code=201, content=new_prod)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno al crear producto: {e}")
 
 # Sirve la Web
 

@@ -28,6 +28,15 @@ input {
   border-radius: 4px;
 }
 
+.selectOptions {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
 button {
   padding: 10px 16px;
   margin: 8px 4px;

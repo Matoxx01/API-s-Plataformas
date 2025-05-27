@@ -251,7 +251,7 @@ async function updateProduct(id) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ desc: descVal, new: newVal })
     });
-    if (!res.ok) throw new Error("Error al actualizar");
+    if (!res.ok) throw new Error("Error al actualizar, no tienes permisos para esta accion");
     const data = await res.json();
     statusEl.style.color = "green";
     allArticles = [];
@@ -454,6 +454,75 @@ async function getVendor() {
   const res = await fetch(`/data/vendedores/${id}`, { headers: authHeaders() });
   const data = await res.json();
   showResponse(data);
+}
+
+function addProduct() {
+  hideAllSections();
+  formSectionEl.style.display = "block";
+  formContainerEl.innerHTML = `
+    <label>Categoria:</label>
+      <select class="selectOptions" id="category-select">
+        <option value="Herramientas Manuales">Herramientas Manuales</option>
+        <option value="Materiales Básicos">Materiales Básicos</option>
+        <option value="Acabados">Acabados</option>
+        <option value="Cerámicos">Cerámicos</option>
+        <option value="Equipos de Seguridad">Equipos de Seguridad</option>
+        <option value="Accesorios Varios">Accesorios Varios</option>
+        <option value="Tornillos y Anclajes">Tornillos y Anclajes</option>
+        <option value="Fijaciones y Adhesivos">Fijaciones y Adhesivos</option>
+        <option value="Equipos de Medición">Equipos de Medición</option>
+      </select>
+    <label>SubCategoria:</label>
+    <input type="text" id="input-subcategory" placeholder="Adesivo" />
+    <label>Marca:</label>
+    <input type="text" id="input-brand" placeholder="CAT" />
+    <label>Nombre:</label>
+    <input type="text" id="input-name" placeholder="Scotch" />
+    <label>Stock:</label>
+    <input type="text" id="input-stock" placeholder="999" />
+    <label>Precio:</label>
+    <input type="text" id="input-price" placeholder="CLP" />
+    <button onclick="sendNewProduct()">Publicar</button>
+  `;
+}
+
+async function sendNewProduct() {
+  const categoria = document.getElementById("category-select").value;
+  const subcategoria = document.getElementById("input-subcategory").value.trim();
+  const marca = document.getElementById("input-brand").value.trim();
+  const nombre = document.getElementById("input-name").value.trim();
+  const stock = parseInt(document.getElementById("input-stock").value, 10);
+  const precio = parseInt(document.getElementById("input-price").value.replace(/[^0-9]/g, ""), 10);
+
+  if (!subcategoria || !marca || !nombre || isNaN(stock) || isNaN(precio)) {
+    return showResponse("❌ Todos los campos son requeridos y numéricos donde corresponda.");
+  }
+
+  try {
+    const res = await fetch("/data/product/new", {
+      method: "POST",
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        categoria,
+        subcategoria,
+        marca,
+        nombre,
+        stock,
+        precio
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Error al crear producto");
+
+    await reloadArticles();
+    showResponse(data);
+  } catch (e) {
+    showResponse("❌ " + e.message);
+  }
 }
 
 function showOrderForm() {

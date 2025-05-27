@@ -42,5 +42,16 @@
     "desc": 10,
     "new": "True",
     "precio": 990
+  },
+  {
+    "id": "ART127",
+    "categoria": "Herramientas Manuales",
+    "subcategoria": "Clinico",
+    "marca": "Cruz Verde",
+    "nombre": "Parche Curita",
+    "stock": 50,
+    "precio": 4990,
+    "desc": 50,
+    "new": false
   }
 ]
