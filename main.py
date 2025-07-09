@@ -1,10 +1,10 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Query, Path, Body
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import httpx
 from pydantic import BaseModel, EmailStr, validator
 import stripe, os, json, smtplib
-from fastapi.staticfiles import StaticFiles
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
